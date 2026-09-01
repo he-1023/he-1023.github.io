@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh‑CN">
+<head>
+    <meta charset="UTF‑8">
+    <!-- 手机平板自适应关键标签 -->
+    <meta name="viewport" content="width=device‑width, initial‑scale=1.0, maximum‑scale=1.0, user‑scalable=no">
+    <title>Word / 图片 转 PDF</title>
+    <!-- 多尺寸网站图标 favicon（适配电脑、手机标签页） -->
+    <link rel="icon" href="favicon.ico" type="image/x‑icon">
+    <link rel="shortcut icon" href="favicon.ico">
+    <!-- 移动端网页图标（添加到手机桌面时显示） -->
+    <link rel="apple‑touch‑icon" href="favicon.ico">
+
+    <script src="https://unpkg.com/mammoth@1.4.21/mammoth.browser.min.js"></script>
+    <script src="https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+    <style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui, -apple-system}
+body{background:#f4f7fa;padding:20px 16px;min-height:100vh}
+.container{background:#fff;padding:24px;border-radius:16px;box-shadow:0 4px 18px #00000017;
+max-width:800px;margin:0 auto;
+/*平板、手机自动缩小内边距*/
+}
+h1{text-align:center;color:#222;margin-bottom:24px;font-size:24px}
+@media (max-width:480px){
+    h1{font-size:20px}
+    .container{padding:18px}
+}
+.upload-area{border:2px dashed #4080ff;border-radius:12px;padding:32px 16px;text-align:center;margin-bottom:20px;cursor:pointer;color:#4080ff}
+.upload-area:hover{background:#f0f6ff}
+#fileInput{display:none}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;background:#2b6def;color:white;font-size:17px;cursor:pointer;margin-top:12px}
+.btn:disabled{background:#b8ccf0;cursor:not-allowed}
+.preview{margin-top:20px;border:1px solid #eee;padding:16px;min-height:120px;overflow:auto}
+.tip{font-size:13px;color:#777;margin-top:10px;text-align:center}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Word / 图片 转 PDF</h1>
+    <div class="upload-area" id="dropZone">
+        <p>点击或者拖拽文件到这里<br/>支持 .docx / JPG / PNG</p>
+        <input type="file" id="fileInput" accept=".docx,.jpg,.jpeg,.png,.webp">
+    </div>
+    <button class="btn" id="convertBtn" disabled>转换并下载PDF</button>
+    <div class="preview" id="previewBox"><p>文件预览区域</p></div>
+    <p class="tip">全部转换在本地浏览器完成，文件不会上传任何服务器</p>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const convertBtn = document.getElementById('convertBtn');
+const previewBox = document.getElementById('previewBox');
+let targetFile = null;
+
+dropZone.onclick = ()=>fileInput.click();
+dropZone.ondragover = e=>{e.preventDefault();dropZone.style.background='#e8f1ff'};
+dropZone.ondragleave = ()=>dropZone.style.background='';
+dropZone.ondrop = e=>{
+    e.preventDefault();
+    dropZone.style.background='';
+    if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+};
+fileInput.onchange = ()=>{
+    if(fileInput.files[0]) loadFile(fileInput.files[0]);
+};
+
+async function loadFile(file){
+    targetFile = file;
+    convertBtn.disabled = false;
+    previewBox.innerHTML = `<p>已选中文件：${file.name}</p>`;
+}
+
+convertBtn.onclick = async ()=>{
+    if(!targetFile) return;
+    convertBtn.disabled=true;
+    previewBox.innerHTML="<p>正在转换，请稍候……</p>";
+    try{
+        const name = targetFile.name.toLowerCase();
+        if(name.endsWith('.docx')){
+            const buf = await targetFile.arrayBuffer();
+            const res = await mammoth.convertToHtml({arrayBuffer:buf});
+            previewBox.innerHTML = res.value;
+            const opt = {margin:10,filename:"转换文档.pdf",html2canvas:{scale:2}};
+            await html2pdf().set(opt).from(previewBox).save();
+        }else{
+            const pdf = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+            const imgUrl = URL.createObjectURL(targetFile);
+            const img = new Image();
+            img.src = imgUrl;
+            await new Promise(resolve=>{
+                img.onload = ()=>{
+                    pdf.addImage(img,'JPEG',10,10,190,0);
+                    pdf.save("图片转pdf.pdf");
+                    resolve();
+                }
+            })
+        }
+        previewBox.innerHTML="<p style='color:green'>✅转换完成，文件已经自动下载！</p>";
+    }catch(err){
+        previewBox.innerHTML="<p style='color:red'>❌转换失败，请确认文件格式为docx或者图片</p>";
+        console.error(err);
+    }
+    convertBtn.disabled=false;
+}
+</script>
+</body>
+</html>
+
