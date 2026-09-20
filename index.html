@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>不归宅</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#000;
+    font-family: "Microsoft YaHei", "PingFang SC", serif; color:#c8b89a; }
+
+  /* ============ 开场 ============ */
+  #boot { position:fixed; inset:0; background:#000; z-index:100;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  #boot .inner { text-align:center; max-width:600px; padding:20px; }
+  #boot h1 { font-size:42px; letter-spacing:18px; color:#8b0000;
+    text-shadow:0 0 20px #400, 0 0 40px #800; margin-bottom:30px; font-weight:normal; }
+  #boot p { color:#665; line-height:2; font-size:14px; letter-spacing:2px; }
+  #boot .tip { margin-top:50px; color:#443; animation:blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity:0.2; } }
+
+  /* ============ 主舞台 ============ */
+  #stage { position:fixed; inset:0; overflow:hidden; }
+  #scene { position:absolute; inset:0; background-size:cover; background-position:center;
+    transition: opacity 1.2s ease, filter 1.2s; filter:brightness(0.25) saturate(0.7); }
+  #scene.dim { filter:brightness(0.08) saturate(0.4); }
+
+  /* 手电筒：跟随鼠标的径向亮区 */
+  #torch { position:absolute; inset:0; pointer-events:none; z-index:5;
+    background: radial-gradient(circle 260px at var(--mx,50%) var(--my,50%),
+      transparent 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.92) 70%, #000 100%);
+    transition: opacity .4s; }
+  #torch.off { background:#000; }
+
+  /* 噪点 / 胶片颗粒 */
+  #grain { position:absolute; inset:-100px; pointer-events:none; z-index:6; opacity:.12;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    animation: grain 0.4s steps(4) infinite; }
+  @keyframes grain {
+    0%{transform:translate(0,0)} 25%{transform:translate(-30px,20px)}
+    50%{transform:translate(20px,-25px)} 75%{transform:translate(-15px,-15px)}
+    100%{transform:translate(0,0)} }
+
+  /* 暗角 */
+  #vignette { position:absolute; inset:0; pointer-events:none; z-index:4;
+    box-shadow: inset 0 0 220px 80px #000; }
+
+  /* ============ 热区（可点击物） ============ */
+  .hotspot { position:absolute; cursor:pointer; z-index:10; }
+  .hotspot:hover::after { content:attr(data-label); position:absolute; left:50%; top:-26px;
+    transform:translateX(-50%); white-space:nowrap; color:#c8b89a; font-size:13px;
+    background:rgba(0,0,0,.75); padding:3px 10px; border:1px solid #443; letter-spacing:2px; }
+
+  /* ============ 底部叙述 ============ */
+  #narration { position:absolute; left:0; right:0; bottom:0; z-index:20;
+    padding:22px 40px 28px; background:linear-gradient(transparent, rgba(0,0,0,.92) 40%);
+    min-height:110px; }
+  #narration .text { font-size:15px; line-height:1.9; letter-spacing:1.5px; color:#b8a88a;
+    min-height:56px; text-shadow:0 0 6px #000; }
+  #narration .continue { position:absolute; right:30px; bottom:10px; color:#776;
+    font-size:12px; animation:blink 1.4s infinite; }
+
+  /* ============ 顶部按钮 ============ */
+  #topbar { position:absolute; top:14px; left:0; right:0; z-index:20;
+    display:flex; justify-content:space-between; padding:0 22px; }
+  #topbar button { background:rgba(0,0,0,.55); color:#887; border:1px solid #332;
+    padding:6px 14px; cursor:pointer; font-size:12px; letter-spacing:3px; }
+  #topbar button:hover { color:#c8b89a; border-color:#654; }
+  #loc { color:#554; font-size:12px; letter-spacing:4px; margin-top:8px; }
+
+  /* ============ 线索本 ============ */
+  #casebook { position:fixed; inset:0; z-index:50; background:rgba(5,4,3,.96);
+    display:none; padding:50px 60px; overflow-y:auto; }
+  #casebook.open { display:block; }
+  #casebook h2 { color:#a89878; letter-spacing:8px; font-weight:normal;
+    border-bottom:1px solid #332; padding-bottom:12px; margin-bottom:24px; }
+  #casebook .item { margin-bottom:22px; padding:14px; background:rgba(20,16,10,.6);
+    border-left:2px solid #654; }
+  #casebook .item h4 { color:#c8b89a; font-size:14px; margin-bottom:6px; letter-spacing:2px; }
+  #casebook .item p { color:#887; font-size:13px; line-height:1.8; }
+  #casebook .close { position:fixed; top:20px; right:30px; color:#654; cursor:pointer;
+    font-size:24px; }
+
+  /* ============ 特写（查看线索图） ============ */
+  #closeup { position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.95);
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+    padding:40px; }
+  #closeup.open { display:flex; }
+  #closeup img { max-width:80%; max-height:72vh; border:1px solid #443;
+    box-shadow:0 0 60px #000; }
+  #closeup .caption { margin-top:20px; color:#988; font-size:14px; letter-spacing:2px;
+    text-align:center; max-width:700px; line-height:1.9; }
+  #closeup .close { position:absolute; top:20px; right:30px; color:#654; cursor:pointer;
+    font-size:28px; }
+
+  /* ============ 密码锁 ============ */
+  #keypad { position:fixed; inset:0; z-index:55; background:rgba(0,0,0,.9);
+    display:none; align-items:center; justify-content:center; flex-direction:column; }
+  #keypad.open { display:flex; }
+  #keypad h3 { color:#a89878; letter-spacing:6px; font-weight:normal; margin-bottom:20px; }
+  #keypad .display { font-size:48px; letter-spacing:14px; color:#c00; background:#000;
+    border:1px solid #433; padding:8px 30px; margin-bottom:20px; min-width:220px;
+    text-align:center; font-family:monospace; }
+  #keypad .keys { display:grid; grid-template-columns:repeat(3,60px); gap:10px; }
+  #keypad .keys button { width:60px; height:60px; font-size:22px; background:#111;
+    color:#a88; border:1px solid #332; cursor:pointer; }
+  #keypad .keys button:hover { background:#222; color:#cba; }
+  #keypad .err { color:#933; margin-top:14px; height:20px; letter-spacing:2px; font-size:13px; }
+
+  /* ============ Jump Scare ============ */
+  #scare { position:fixed; inset:0; z-index:99; background:#000; display:none;
+    align-items:center; justify-content:center; }
+  #scare img { width:100%; height:100%; object-fit:cover; animation: shake 0.1s infinite; }
+  @keyframes shake {
+    0%{transform:translate(0,0)} 25%{transform:translate(-8px,6px)}
+    50%{transform:translate(7px,-5px)} 75%{transform:translate(-5px,-7px)}
+    100%{transform:translate(6px,5px)} }
+  #scare.flash { animation: flashRed 0.4s infinite; }
+  @keyframes flashRed { 50% { filter: hue-rotate(-40deg) saturate(3) brightness(1.4); } }
+
+  /* 黑屏转场 */
+  #fade { position:fixed; inset:0; background:#000; z-index:80; opacity:1;
+    pointer-events:none; transition: opacity 1.2s; }
+
+  /* 结局 */
+  #ending { position:fixed; inset:0; z-index:70; background:#000; display:none;
+    align-items:center; justify-content:center; padding:40px; }
+  #ending.open { display:flex; }
+  #ending .body { max-width:640px; text-align:center; }
+  #ending h2 { color:#8b0000; letter-spacing:12px; font-weight:normal;
+    margin-bottom:30px; font-size:32px; }
+  #ending p { color:#987; line-height:2.2; font-size:15px; letter-spacing:2px; }
+</style>
+</head>
+<body>
+
+<!-- 开场 -->
+<div id="boot">
+  <div class="inner">
+    <h1>不归宅</h1>
+    <p>
+      三年前，女作家林晚音在这栋老宅里失踪。<br>
+      警方查了八个月，一无所获，案子成了悬案。<br><br>
+      今晚十一点零七分，邻居报警——<br>
+      那栋空了三年的房子，二楼书房的灯，亮了。<br><br>
+      你是负责这起案子的刑警。<br>
+      你推开门走了进去。<br>
+    </p>
+    <div class="tip">— 点 击 任 意 处 进 入 —</div>
+  </div>
+</div>
+
+<!-- 主舞台 -->
+<div id="stage">
+  <div id="scene"></div>
+  <div id="torch"></div>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+  <div id="topbar">
+    <div id="loc">— 未知位置 —</div>
+    <button id="casebookBtn">线 索 本</button>
+  </div>
+
+  <div id="narration">
+    <div class="text" id="narText"></div>
+    <div class="continue" id="narNext" style="display:none">▼</div>
+  </div>
+</div>
+
+<!-- 线索本 -->
+<div id="casebook">
+  <span class="close" onclick="UI.closeCasebook()">×</span>
+  <h2>线 索 本</h2>
+  <div id="caseList"></div>
+</div>
+
+<!-- 特写 -->
+<div id="closeup">
+  <span class="close" onclick="UI.closeCloseup()">×</span>
+  <img id="cuImg" src="">
+  <div class="caption" id="cuCap"></div>
+</div>
+
+<!-- 密码锁 -->
+<div id="keypad">
+  <h3>老 式 抽 屉 锁</h3>
+  <div class="display" id="kpDisp">····</div>
+  <div class="keys" id="kpKeys"></div>
+  <div class="err" id="kpErr"></div>
+</div>
+
+<!-- Jump scare -->
+<div id="scare"><img src="https://img.remit.ee/i/kj9tZudSMntK" alt=""></div>
+
+<!-- 转场 -->
+<div id="fade"></div>
+
+<!-- 结局 -->
+<div id="ending">
+  <div class="body">
+    <h2>你 没 有 走 出 来</h2>
+    <p id="endText"></p>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   不归宅 —— 恐怖探案解谜
+   ============================================================ */
+
+// ---------- 全局状态 ----------
+const S = {
+  room: 'entrance',
+  flags: {
+    hasKey: false,
+    hasCrowbar: false,
+    openedCloset: false,
+    readLetter: false,
+    sawPhoto: false,
+    sawDrawing: false,
+    foundUnderBed: false,
+    scareHallway: false,
+    scareCloset: false,
+    scareMirror: false,
+    ending: false,
+  },
+  clues: [],
+};
+
+// ---------- 房间定义 ----------
+const ROOMS = {
+  entrance: {
+    bg: 'https://img.remit.ee/i/fIKvrIWi47gJ',
+    name: '— 客厅 —',
+    intro: '门在你身后"砰"地合上。你试了试门把手——锁死了。空气里有一股灰尘和……铁锈的味道。手电光扫过落灰的沙发、翻倒的茶几。',
+    hotspots: [
+      { x: 18, y: 60, w: 22, h: 22, label: '沙发垫', act: 'sofa' },
+      { x: 55, y: 65, w: 20, h: 18, label: '茶几', act: 'table' },
+      { x: 75, y: 45, w: 18, h: 40, label: '走廊的门', act: 'toHall' },
+    ],
+  },
+  hallway: {
+    bg: 'https://img.remit.ee/i/PW7Pxe7EF9gm',
+    name: '— 走廊 —',
+    intro: '狭长的走廊。墙皮成片剥落，露出底下暗红的砖。左边一扇窗，月光在木地板上切出一道惨白的光。墙上挂着一幅歪了的相框。走廊尽头，向下的楼梯通向黑暗。',
+    hotspots: [
+      { x: 55, y: 30, w: 12, h: 40, label: '墙上的相框', act: 'frame' },
+      { x: 30, y: 45, w: 14, h: 35, label: '书房的门', act: 'toStudy' },
+      { x: 78, y: 45, w: 14, h: 35, label: '卧室的门', act: 'toBedroom' },
+      { x: 48, y: 80, w: 10, h: 15, label: '通向地下室', act: 'toBasement' },
+      { x: 90, y: 50, w: 8, h: 30, label: '回客厅', act: 'toEntrance' },
+    ],
+  },
+  study: {
+    bg: 'https://img.remit.ee/i/lyK2M3DOuqmE',
+    name: '— 书房 —',
+    intro: '书桌上那盏煤油灯……竟然还亮着。火苗 tiny，摇晃，像随时会灭。桌上散落着纸，一个空相框。桌子正中有一个老式抽屉，挂着四位数字的铜锁。',
+    hotspots: [
+      { x: 45, y: 55, w: 22, h: 25, label: '桌上的血信', act: 'letter' },
+      { x: 48, y: 72, w: 16, h: 12, label: '锁着的抽屉', act: 'drawer' },
+      { x: 10, y: 30, w: 22, h: 55, label: '倾倒的书架', act: 'shelf' },
+      { x: 90, y: 50, w: 8, h: 30, label: '回走廊', act: 'toHall' },
+    ],
+  },
+  bedroom: {
+    bg: 'https://img.remit.ee/i/wrBQkFmEid0G',
+    name: '— 卧室 —',
+    intro: '铁架床上的蚊帐烂成了絮。床单发黑，像有什么东西在上面躺过、又被拖走。右边的衣柜门半开着，缝里透出一股霉味。墙上那面镜子裂了一道纹。',
+    hotspots: [
+      { x: 72, y: 45, w: 18, h: 45, label: '衣柜', act: 'closet' },
+      { x: 30, y: 70, w: 25, h: 12, label: '床底', act: 'underbed' },
+      { x: 8, y: 35, w: 10, h: 25, label: '裂镜', act: 'mirror' },
+      { x: 92, y: 50, w: 6, h: 30, label: '回走廊', act: 'toHall' },
+    ],
+  },
+  basement: {
+    bg: 'https://img.remit.ee/i/ZCRZs8UvyivT',
+    name: '— 地下室 —',
+    intro: '石阶又湿又滑。墙上的抓痕一道叠着一道，深得不像人抓的。那盏裸灯泡晃得厉害，影子在墙上跳。走廊尽头……有一块砖是松的。',
+    hotspots: [
+      { x: 60, y: 60, w: 14, h: 22, label: '松动的砖墙', act: 'wall' },
+      { x: 50, y: 90, w: 12, h: 8, label: '回走廊', act: 'toHall' },
+    ],
+  },
+};
+
+// ---------- 线索定义 ----------
+const CLUES = {
+  drawing: {
+    title: '蜡笔画',
+    body: '一张从作业本上撕下来的纸。红蜡笔画的房子，门口一个小人。两个叉。一个奇怪的圆圈符号。纸角有泪痕。——这是林晚音女儿周安安的画。警方卷宗里提过，失踪那年她七岁。',
+  },
+  photo: {
+    title: '旧合影',
+    body: '一家三口站在老宅门前。男人表情僵硬，小孩面无表情。女人的脸被人用指甲刮花了，只剩下一片模糊的白。照片背面有一行蓝墨水小字："安安七岁生日，1998.7.14。"',
+  },
+  letter: {
+    title: '血信',
+    body: '林晚音的字迹。"他知道我在写。他翻了我的抽屉。我不能让他看到第七稿……如果我不见了，警察会来的，他们会找到的。周成安，我知道那些女人是谁。安安不能留在这里。"字迹在最后一行歪掉，右下角有一块已经发黑的血渍。',
+  },
+  key: {
+    title: '黄铜钥匙',
+    body: '从沙发垫底下摸出来的，钥匙齿很新，像是最近才被人藏进去的。挂着一个小标签，上面写着一个字："衣"。',
+  },
+  crowbar: {
+    title: '撬棍',
+    body: '藏在抽屉最底下的油布里。不长，但钢口很硬。——可以撬开松动的东西。',
+  },
+  underbed: {
+    title: '撕碎的纸条',
+    body: '从床缝里抠出来的，拼起来只有半句话："……他把她埋在了下面。安安看见了。安安什么都看见——"后面的字被血浸透，再也认不出来。',
+  },
+};
+
+// ---------- 音效引擎（Web Audio 合成） ----------
+let AC = null, master, ambientNode, heartbeatNode, heartbeatGain;
+function initAudio() {
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value = 0.35; master.connect(AC.destination);
+
+  const bufSize = 2 * AC.sampleRate;
+  const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+  const src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+  ambientNode = AC.createGain(); ambientNode.gain.value = 0.18;
+  src.connect(lp).connect(ambientNode).connect(master); src.start();
+
+  heartbeatGain = AC.createGain(); heartbeatGain.gain.value = 0;
+  heartbeatNode = AC.createGain(); heartbeatNode.gain.value = 1;
+  heartbeatNode.connect(heartbeatGain).connect(master);
+  setTimeout(beat, 100);
+  setInterval(beat, 1100);
+}
+function beat() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  [0, 0.18].forEach(off => {
+    const o = AC.createOscillator(); o.frequency.value = 55;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0, t + off);
+    g.gain.linearRampToValueAtTime(0.9, t + off + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.15);
+    o.connect(g).connect(heartbeatNode);
+    o.start(t + off); o.stop(t + off + 0.2);
+  });
+}
+function sfx(type) {
+  if (!AC) return;
+  const t = AC.currentTime;
+  if (type === 'thud') {
+    const o = AC.createOscillator(); o.frequency.setValueAtTime(80, t);
+    o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+    const g = AC.createGain(); g.gain.setValueAtTime(0.8, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.7);
+  } else if (type === 'creak') {
+    const o = AC.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.linearRampToValueAtTime(90, t + 0.8);
+    const g = AC.createGain(); g.gain.setValueAtTime(0.08, t);
+    g.gain.linearRampToValueAtTime(0.001, t + 1);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 1.1);
+  } else if (type === 'scare') {
+    master.gain.value = 0.9;
+    const o = AC.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(800, t);
+    o.frequency.exponentialRampToValueAtTime(1800, t + 0.15);
+    o.frequency.exponentialRampToValueAtTime(300, t + 0.9);
+    const g = AC.createGain(); g.gain.setValueAtTime(1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 1.3);
+    setTimeout(() => { master.gain.value = 0.35; }, 1300);
+  } else if (type === 'pickup') {
+    const o = AC.createOscillator(); o.frequency.value = 660;
+    const g = AC.createGain(); g.gain.setValueAtTime(0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.3);
+  } else if (type === 'wrong') {
+    const o = AC.createOscillator(); o.frequency.value = 110;
+    const g = AC.createGain(); g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.6);
+  }
+}
+
+// ---------- UI 辅助 ----------
+const UI = {
+  narrQueue: [], narrBusy: false, currentText: "",
+  say(text) {
+    this.narrQueue.push(text);
+    if (!this.narrBusy) this.nextNarr();
+  },
+  nextNarr() {
+    if (!this.narrQueue.length) { this.narrBusy = false; return; }
+    this.narrBusy = true;
+    const el = document.getElementById('narText');
+    this.currentText = this.narrQueue.shift();
+    el.textContent = '';
+    const next = document.getElementById('narNext');
+    next.style.display = 'none';
+    let i = 0;
+    this.typer = setInterval(() => {
+      el.textContent = this.currentText.slice(0, ++i);
+      if (i >= this.currentText.length) {
+        clearInterval(this.typer);
+        next.style.display = 'block';
+        this.narrBusy = false;
+      }
+    }, 35);
+  },
+  handleNarClick() {
+    const el = document.getElementById('narText');
+    const next = document.getElementById('narNext');
+    if (this.narrBusy) {
+      clearInterval(this.typer);
+      el.textContent = this.currentText;
+      next.style.display = 'block';
+      this.narrBusy = false;
+    } else {
+      if (this.narrQueue.length) this.nextNarr();
+    }
+  },
+  openCloseup(img, cap) {
+    document.getElementById('cuImg').src = img;
+    document.getElementById('cuCap').textContent = cap;
+    document.getElementById('closeup').classList.add('open');
+  },
+  closeCloseup() { document.getElementById('closeup').classList.remove('open'); },
+  openCasebook() {
+    const list = document.getElementById('caseList');
+    list.innerHTML = '';
+    if (!S.clues.length) {
+      list.innerHTML = '<div class="item"><p>本子是空的。</p></div>';
+    }
+    S.clues.forEach(id => {
+      const c = CLUES[id];
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `<h4>${c.title}</h4><p>${c.body}</p>`;
+      list.appendChild(div);
+    });
+    document.getElementById('casebook').classList.add('open');
+  },
+  closeCasebook() { document.getElementById('casebook').classList.remove('open'); },
+  addClue(id) {
+    if (!S.clues.includes(id)) {
+      S.clues.push(id);
+      sfx('pickup');
+      this.say('【已加入线索本】' + CLUES[id].title);
+    }
+  },
+};
+
+// 点击叙述区
+document.getElementById('narration').onclick = () => UI.handleNarClick();
+
+// ---------- 手电筒 ----------
+const torch = document.getElementById('torch');
+document.addEventListener('mousemove', e => {
+  torch.style.setProperty('--mx', e.clientX + 'px');
+  torch.style.setProperty('--my', e.clientY + 'px');
+});
+
+// ---------- 房间切换 ----------
+function setRoom(name) {
+  S.room = name;
+  const room = ROOMS[name];
+  const scene = document.getElementById('scene');
+  document.getElementById('loc').textContent = room.name;
+
+  const fade = document.getElementById('fade');
+  fade.style.opacity = 1;
+  setTimeout(() => {
+    scene.style.backgroundImage = `url("${room.bg}")`;
+    document.querySelectorAll('.hotspot').forEach(h => h.remove());
+    room.hotspots.forEach(h => {
+      const div = document.createElement('div');
+      div.className = 'hotspot';
+      div.style.left = h.x + '%';
+      div.style.top = h.y + '%';
+      div.style.width = h.w + '%';
+      div.style.height = h.h + '%';
+      div.dataset.label = h.label;
+      div.onclick = () => handleAction(h.act);
+      document.getElementById('stage').appendChild(div);
+    });
+    UI.say(room.intro);
+    fade.style.opacity = 0;
+
+    if (name === 'hallway' && !S.flags.scareHallway) {
+      S.flags.scareHallway = true;
+      setTimeout(() => doScare('你经过走廊的窗玻璃。玻璃里映出你的脸——身后，门框的阴影里，站着另一个人。你猛回头。什么都没有。'), 3500);
+    }
+  }, 1200);
+}
+
+// ---------- 动作分发 ----------
+function handleAction(act) {
+  switch (act) {
+    case 'sofa':
+      if (!S.flags.hasKey) {
+        S.flags.hasKey = true;
+        UI.say('你把手伸进沙发垫底下——摸到一把冰凉的黄铜钥匙。钥匙上挂着一个小标签，写着一个字：衣。');
+        UI.addClue('key');
+      } else {
+        UI.say('沙发垫底下已经空了。你摸出一把灰。');
+      }
+      break;
+
+    case 'table':
+      if (!S.flags.sawDrawing) {
+        S.flags.sawDrawing = true;
+        UI.openCloseup('https://img.remit.ee/i/W83FLLUkeIYR', '茶几上摊着这张蜡笔画。你认得这种画风——七岁小孩的笔触。');
+        UI.addClue('drawing');
+      } else {
+        UI.say('茶几上只剩那幅画。你盯着那个圆圈符号看了很久。');
+      }
+      break;
+
+    case 'toHall': sfx('creak'); setRoom('hallway'); break;
+    case 'toEntrance': setRoom('entrance'); break;
+    case 'toStudy': sfx('creak'); setRoom('study'); break;
+    case 'toBedroom': sfx('creak'); setRoom('bedroom'); break;
+    case 'toBasement':
+      if (!S.flags.hasCrowbar) {
+        UI.say('通往地下室的门被一道铁栓锁死。你徒手拧不动。需要工具。');
+      } else {
+        sfx('creak'); setRoom('basement');
+      }
+      break;
+
+    case 'frame':
+      if (!S.flags.sawPhoto) {
+        S.flags.sawPhoto = true;
+        UI.openCloseup('https://img.remit.ee/i/TRJg9B4WL8ij', '相框里是一家三口。你把照片翻过来——背面那行字在手电下泛着蓝："安安七岁生日，1998.7.14。"');
+        UI.addClue('photo');
+      } else {
+        UI.say('你又看了一遍那张合影。被刮花的那张脸，像一张嘴。');
+      }
+      break;
+
+    case 'letter':
+      if (!S.flags.readLetter) {
+        S.flags.readLetter = true;
+        UI.openCloseup('https://img.remit.ee/i/fuywrRM6FSZD', '煤油灯的火苗晃了一下。这是林晚音的绝笔。');
+        UI.addClue('letter');
+      } else {
+        UI.say('血信上的字你已经能背下来了。"他知道我在写。"');
+      }
+      break;
+
+    case 'drawer':
+      openKeypad();
+      break;
+
+    case 'shelf':
+      UI.say('书架倒了一地。你翻了几本——全是林晚音的手稿，第七稿被人撕掉了，撕口很新。');
+      break;
+
+    case 'closet':
+      if (!S.flags.hasKey) {
+        UI.say('衣柜门上挂着一把小铜锁。你口袋里没有能开它的东西。');
+      } else if (!S.flags.openedCloset) {
+        S.flags.openedCloset = true;
+        doScare('锁"咔哒"一声开了。你拉开衣柜——里面挂着一件暗红色的女人旗袍，空的。旗袍底下……是一双小小的童鞋。七岁孩子的尺寸。');
+      } else {
+        UI.say('衣柜里那件旗袍还在晃。风从哪来的？');
+      }
+      break;
+
+    case 'underbed':
+      if (!S.flags.foundUnderBed) {
+        S.flags.foundUnderBed = true;
+        UI.say('你趴下，把手电伸进床底。摸到一团纸。拼起来——');
+        UI.addClue('underbed');
+      } else {
+        UI.say('床底什么都没有了。但你总觉得，有什么东西刚才在那里看过你。');
+      }
+      break;
+
+    case 'mirror':
+      if (!S.flags.scareMirror) {
+        S.flags.scareMirror = true;
+        setTimeout(() => doScare('你凑近裂镜。镜中的你慢了半拍才转头。然后你看见了——镜中你身后的墙上，有一张不属于你的脸，正贴着你的肩膀，对镜子笑。'), 800);
+      } else {
+        UI.say('镜子里只有你自己。这一次。');
+      }
+      break;
+
+    case 'wall':
+      if (!S.flags.hasCrowbar) {
+        UI.say('那块砖松了，但你徒手抠不动。');
+      } else if (!S.flags.ending) {
+        S.flags.ending = true;
+        doScareFinal();
+      } else {
+        UI.say('墙已经塌了。你不想再看里面。');
+      }
+      break;
+  }
+}
+
+// ---------- 密码锁 ----------
+let kpInput = '';
+function openKeypad() {
+  const kp = document.getElementById('keypad');
+  kp.classList.add('open');
+  kpInput = '';
+  document.getElementById('kpDisp').textContent = '····';
+  document.getElementById('kpErr').textContent = '';
+  const keys = document.getElementById('kpKeys');
+  keys.innerHTML = '';
+  for (let i = 1; i <= 9; i++) addKey(i);
+  addKey('C', true); addKey(0); addKey('OK');
+}
+function addKey(n, special) {
+  const b = document.createElement('button');
+  b.textContent = n;
+  b.onclick = () => {
+    if (n === 'C') { kpInput = ''; }
+    else if (n === 'OK') {
+      if (kpInput === '0714') {
+        document.getElementById('keypad').classList.remove('open');
+        S.flags.hasCrowbar = true;
+        UI.addClue('crowbar');
+        UI.say('锁"咔"地开了。抽屉里没有钱，没有手稿——只有一根用油布包着的撬棍。');
+      } else {
+        sfx('wrong');
+        document.getElementById('kpErr').textContent = '锁死了。数字不对。';
+        kpInput = '';
+      }
+    } else if (kpInput.length < 4) {
+      kpInput += n;
+    }
+    document.getElementById('kpDisp').textContent =
+      kpInput.padEnd(4, '·').split('').join(' ');
+  };
+  document.getElementById('kpKeys').appendChild(b);
+}
+
+// ---------- Jump Scare ----------
+function doScare(after) {
+  const s = document.getElementById('scare');
+  s.classList.add('flash');
+  s.style.display = 'flex';
+  sfx('scare');
+  document.body.style.animation = 'shake 0.1s infinite';
+  setTimeout(() => {
+    s.style.display = 'none';
+    s.classList.remove('flash');
+    document.body.style.animation = '';
+    if (after) UI.say(after);
+  }, 900);
+}
+
+function doScareFinal() {
+  const s = document.getElementById('scare');
+  s.classList.add('flash');
+  s.style.display = 'flex';
+  sfx('scare');
+  document.body.style.animation = 'shake 0.08s infinite';
+  setTimeout(() => {
+    s.style.display = 'none';
+    s.classList.remove('flash');
+    document.body.style.animation = '';
+    setTimeout(() => {
+      const e = document.getElementById('ending');
+      document.getElementById('endText').innerHTML =
+        '撬棍插进砖缝，你用力一撬——墙塌了一个洞。<br><br>' +
+        '手电照进去。<br>' +
+        '土。<br>' +
+        '一截白骨。<br>' +
+        '一只小小的、穿着童鞋的手。<br><br>' +
+        '林晚音。不——她不是被埋的那个。<br>' +
+        '她在信里写"他把她埋在了下面"。<br>' +
+        '"她"。是安安。<br><br>' +
+        '那林晚音自己呢？<br><br>' +
+        '你听到身后有脚步声。<br>' +
+        '很慢。从走廊尽头。<br>' +
+        '一步。一步。<br><br>' +
+        '手电的光，开始抖。<br><br>' +
+        '<span style="color:#8b0000">—— 这栋房子，三年来一直在等人。</span>';
+      e.classList.add('open');
+    }, 1500);
+  }, 1200);
+}
+
+// ---------- 线索本按钮 ----------
+document.getElementById('casebookBtn').onclick = () => UI.openCasebook();
+
+// ---------- 开场 ----------
+document.getElementById('boot').addEventListener('click', function () {
+  this.style.display = 'none';
+  initAudio();
+  sfx('thud');
+  setTimeout(() => setRoom('entrance'), 800);
+}, { once: true });
+</script>
+</body>
+</html>
